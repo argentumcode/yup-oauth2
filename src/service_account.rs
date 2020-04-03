@@ -25,6 +25,7 @@ use rustls::{
 };
 use serde::{Deserialize, Serialize};
 use url::form_urlencoded;
+use crate::ApplicationSecret;
 
 const GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:jwt-bearer";
 const GOOGLE_RS256_HEAD: &str = r#"{"alg":"RS256","typ":"JWT"}"#;
@@ -82,6 +83,72 @@ pub struct ServiceAccountKey {
     pub auth_provider_x509_cert_url: Option<String>,
     /// client_x509_cert_url
     pub client_x509_cert_url: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CredentialsFile {
+    #[serde(rename = "type")]
+    /// key_type
+    pub key_type: String,
+    // For Service Account
+    /// project_id
+    pub project_id: Option<String>,
+    /// private_key_id
+    pub private_key_id: Option<String>,
+    /// private_key
+    pub private_key: Option<String>,
+    /// client_email
+    pub client_email: Option<String>,
+    /// client_id
+    pub client_id: Option<String>,
+    /// auth_uri
+    pub auth_uri: Option<String>,
+    /// token_uri
+    pub token_uri: Option<String>,
+    /// auth_provider_x509_cert_url
+    pub auth_provider_x509_cert_url: Option<String>,
+    /// client_x509_cert_url
+    pub client_x509_cert_url: Option<String>,
+
+    // For Authorized User
+    pub client_secret: Option<String>,
+    pub refresh_token: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UserCredentials {
+    #[serde(rename = "type")]
+    /// key_type
+    pub key_type: String,
+    // For Authorized User
+    pub client_secret: String,
+    pub refresh_token: String,
+    pub client_id: String,
+}
+
+pub struct UserCredentialsFlowOpts {
+    pub(crate) credential: UserCredentials,
+}
+
+pub struct UserCredentialsFlow {
+    pub refresh_token: String,
+    pub app_secret: ApplicationSecret,
+}
+
+
+impl UserCredentialsFlow {
+    pub(crate) fn new(opts: UserCredentialsFlowOpts) -> Result<Self, io::Error> {
+        Ok(UserCredentialsFlow{
+            app_secret: ApplicationSecret{
+                client_id: opts.credential.client_id,
+                client_secret: opts.credential.client_secret,
+                token_uri: "https://oauth2.googleapis.com/token".to_string(),
+                auth_uri:  "https://accounts.google.com/o/oauth2/auth".to_string(),
+                ..Default::default()
+            },
+            refresh_token: opts.credential.refresh_token,
+        })
+    }
 }
 
 /// Permissions requested for a JWT.

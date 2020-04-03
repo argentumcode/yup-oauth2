@@ -4,7 +4,7 @@
 // Copyright (c) 2016 Google Inc (lewinb@google.com).
 //
 // Refer to the project root for licensing information.
-use crate::service_account::ServiceAccountKey;
+use crate::service_account::{ServiceAccountKey, UserCredentials};
 use crate::types::{ApplicationSecret, ConsoleApplicationSecret};
 
 use std::io;
@@ -45,6 +45,18 @@ pub async fn read_service_account_key<P: AsRef<Path>>(path: P) -> io::Result<Ser
         io::Error::new(
             io::ErrorKind::InvalidData,
             format!("Bad service account key: {}", e),
+        )
+    })
+}
+
+/// Read a service account key from a JSON file. You can download the JSON keys from the Google
+/// Cloud Console or the respective console of your service provider.
+pub async fn read_user_credentials<P: AsRef<Path>>(path: P) -> io::Result<UserCredentials> {
+    let key = tokio::fs::read(path).await?;
+    serde_json::from_slice(&key).map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("Bad user credentials key: {}", e),
         )
     })
 }

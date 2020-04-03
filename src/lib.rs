@@ -78,12 +78,13 @@ mod helper;
 mod installed;
 mod refresh;
 mod service_account;
+mod metadata;
 mod storage;
 mod types;
 
 #[doc(inline)]
 pub use crate::authenticator::{
-    DeviceFlowAuthenticator, InstalledFlowAuthenticator, ServiceAccountAuthenticator,
+    DeviceFlowAuthenticator, InstalledFlowAuthenticator, ServiceAccountAuthenticator, UserCredentialsAuthenticator, MetadataApiAuthenticator
 };
 
 pub use crate::helper::*;

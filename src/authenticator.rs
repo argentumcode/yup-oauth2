@@ -4,7 +4,7 @@ use crate::device::DeviceFlow;
 use crate::error::Error;
 use crate::installed::{InstalledFlow, InstalledFlowReturnMethod};
 use crate::refresh::RefreshFlow;
-use crate::service_account::{ServiceAccountFlow, ServiceAccountFlowOpts, ServiceAccountKey};
+use crate::service_account::{ServiceAccountFlow, ServiceAccountFlowOpts, ServiceAccountKey, UserCredentialsFlowOpts, UserCredentialsFlow, UserCredentials};
 use crate::storage::{self, Storage};
 use crate::types::{AccessToken, ApplicationSecret, TokenInfo};
 use private::AuthFlow;
@@ -14,6 +14,7 @@ use std::fmt;
 use std::io;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use crate::metadata::{MetadataApiFlowOpts, MetadataApiFlow};
 
 /// Authenticator is responsible for fetching tokens, handling refreshing tokens,
 /// and optionally persisting tokens to disk.
@@ -185,6 +186,45 @@ impl ServiceAccountAuthenticator {
             key: service_account_key,
             subject: None,
         })
+    }
+}
+
+/// Create an authenticator that uses a service account.
+/// ```
+/// # async fn foo() {
+/// # let service_account_key = yup_oauth2::read_service_account_key("/tmp/foo").await.unwrap();
+///     let authenticator = yup_oauth2::ServiceAccountAuthenticator::builder(service_account_key)
+///         .build()
+///         .await
+///         .expect("failed to create authenticator");
+/// # }
+/// ```
+pub struct UserCredentialsAuthenticator;
+impl UserCredentialsAuthenticator {
+    /// Use the builder pattern to create an Authenticator that uses a service account.
+    pub fn builder(
+        credential: UserCredentials,
+    ) -> AuthenticatorBuilder<DefaultHyperClient, UserCredentialsFlowOpts> {
+        AuthenticatorBuilder::<DefaultHyperClient, _>::with_auth_flow(UserCredentialsFlowOpts {
+            credential
+        })
+    }
+}
+/// Create an authenticator that uses a service account.
+/// ```
+/// # async fn foo() {
+/// # let service_account_key = yup_oauth2::read_service_account_key("/tmp/foo").await.unwrap();
+///     let authenticator = yup_oauth2::ServiceAccountAuthenticator::builder(service_account_key)
+///         .build()
+///         .await
+///         .expect("failed to create authenticator");
+/// # }
+/// ```
+pub struct MetadataApiAuthenticator;
+impl MetadataApiAuthenticator {
+    /// Use the builder pattern to create an Authenticator that uses a service account.
+    pub fn builder() -> AuthenticatorBuilder<DefaultHyperClient, MetadataApiFlowOpts> {
+        AuthenticatorBuilder::<DefaultHyperClient, _>::with_auth_flow(MetadataApiFlowOpts {})
     }
 }
 
@@ -385,8 +425,8 @@ impl<C> AuthenticatorBuilder<C, ServiceAccountFlowOpts> {
 
     /// Create the authenticator.
     pub async fn build(self) -> io::Result<Authenticator<C::Connector>>
-    where
-        C: HyperClientBuilder,
+        where
+            C: HyperClientBuilder,
     {
         let service_account_auth_flow = ServiceAccountFlow::new(self.auth_flow)?;
         Self::common_build(
@@ -394,7 +434,38 @@ impl<C> AuthenticatorBuilder<C, ServiceAccountFlowOpts> {
             self.storage_type,
             AuthFlow::ServiceAccountFlow(service_account_auth_flow),
         )
-        .await
+            .await
+    }
+}
+/// TODO: Write
+impl<C> AuthenticatorBuilder<C, UserCredentialsFlowOpts> {
+    /// Create the authenticator.
+    pub async fn build(self) -> io::Result<Authenticator<C::Connector>>
+        where
+            C: HyperClientBuilder,
+    {
+        let flow = UserCredentialsFlow::new(self.auth_flow)?;
+        Self::common_build(
+            self.hyper_client_builder,
+            self.storage_type,
+            AuthFlow::UserCredentialsFlow(flow),
+        )
+            .await
+    }
+}
+/// TODO: Write
+impl<C> AuthenticatorBuilder<C, MetadataApiFlowOpts> {
+    /// Create the authenticator.
+    pub async fn build(self) -> io::Result<Authenticator<C::Connector>>
+        where
+            C: HyperClientBuilder,
+    {
+        let flow = MetadataApiFlow::new(self.auth_flow)?;
+        Self::common_build(
+            self.hyper_client_builder,
+            self.storage_type,
+            AuthFlow::MetadataApiFlow(flow),
+        ).await
     }
 }
 
@@ -402,13 +473,17 @@ mod private {
     use crate::device::DeviceFlow;
     use crate::error::Error;
     use crate::installed::InstalledFlow;
-    use crate::service_account::ServiceAccountFlow;
+    use crate::service_account::{ServiceAccountFlow, UserCredentialsFlow};
     use crate::types::{ApplicationSecret, TokenInfo};
+    use crate::refresh::RefreshFlow;
+    use crate::metadata::MetadataApiFlow;
 
     pub enum AuthFlow {
         DeviceFlow(DeviceFlow),
         InstalledFlow(InstalledFlow),
         ServiceAccountFlow(ServiceAccountFlow),
+        UserCredentialsFlow(UserCredentialsFlow),
+        MetadataApiFlow(MetadataApiFlow),
     }
 
     impl AuthFlow {
@@ -417,6 +492,8 @@ mod private {
                 AuthFlow::DeviceFlow(device_flow) => Some(&device_flow.app_secret),
                 AuthFlow::InstalledFlow(installed_flow) => Some(&installed_flow.app_secret),
                 AuthFlow::ServiceAccountFlow(_) => None,
+                AuthFlow::UserCredentialsFlow(user_credentials_flow) => Some(&user_credentials_flow.app_secret),
+                AuthFlow::MetadataApiFlow(_) => None,
             }
         }
 
@@ -436,6 +513,12 @@ mod private {
                 }
                 AuthFlow::ServiceAccountFlow(service_account_flow) => {
                     service_account_flow.token(hyper_client, scopes).await
+                }
+                AuthFlow::UserCredentialsFlow(user_credentials_flow) => {
+                    RefreshFlow::refresh_token(hyper_client, &user_credentials_flow.app_secret, &user_credentials_flow.refresh_token).await
+                }
+                AuthFlow::MetadataApiFlow(metadata_api_flow) => {
+                    metadata_api_flow.token(hyper_client, scopes).await
                 }
             }
         }
