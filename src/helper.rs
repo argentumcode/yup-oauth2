@@ -9,6 +9,7 @@ use crate::types::{ApplicationSecret, ConsoleApplicationSecret};
 
 use std::io;
 use std::path::Path;
+use serde_json::Value;
 
 /// Read an application secret from a file.
 pub async fn read_application_secret<P: AsRef<Path>>(path: P) -> io::Result<ApplicationSecret> {
@@ -36,7 +37,43 @@ pub fn parse_application_secret<S: AsRef<[u8]>>(secret: S) -> io::Result<Applica
         ))
     }
 }
+/// a
+#[derive(Debug)]
+pub enum Credentials {
+    /// a
+    ServiceAccountKey(ServiceAccountKey),
+    /// a
+    UserCredentials(UserCredentials),
+}
 
+/// Read a service account key from a JSON file. You can download the JSON keys from the Google
+/// Cloud Console or the respective console of your service provider.
+pub async fn read_credential_file<P: AsRef<Path>>(path: P) -> io::Result<Credentials> {
+    let key = tokio::fs::read(path).await?;
+    let v: Value = serde_json::from_slice(&key)?;
+    match v.get("type") {
+        Some(Value::String(s)) if s == "service_account" => {
+            Ok(Credentials::ServiceAccountKey(serde_json::from_slice(&key).map_err(|e| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Bad service account key: {}", e),
+                )
+            })?))
+        },
+        Some(Value::String(s)) if s == "authorized_user" => {
+            Ok(Credentials::UserCredentials(serde_json::from_slice(&key).map_err(|e| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Bad service account key: {}", e),
+                )
+            })?))
+        },
+        _ => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("Bad service account type"),
+        ))
+    }
+}
 /// Read a service account key from a JSON file. You can download the JSON keys from the Google
 /// Cloud Console or the respective console of your service provider.
 pub async fn read_service_account_key<P: AsRef<Path>>(path: P) -> io::Result<ServiceAccountKey> {
