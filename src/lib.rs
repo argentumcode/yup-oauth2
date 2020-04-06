@@ -70,6 +70,7 @@
 //! ```
 //!
 #![deny(missing_docs)]
+pub mod application_default_credentials;
 pub mod authenticator;
 pub mod authenticator_delegate;
 mod device;
